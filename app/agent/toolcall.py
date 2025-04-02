@@ -22,7 +22,7 @@ class ToolCallAgent(ReActAgent):
     system_prompt: str = SYSTEM_PROMPT
     next_step_prompt: str = NEXT_STEP_PROMPT
 
-    available_tools: ToolCollection = ToolCollection(
+    available_tools: ToolCollection = ToolCollection(         #工具集合,对话补全，终止工具
         CreateChatCompletion(), Terminate()
     )
     tool_choices: Literal["none", "auto", "required"] = "auto"
@@ -32,13 +32,14 @@ class ToolCallAgent(ReActAgent):
 
     max_steps: int = 30
 
-    async def think(self) -> bool:
+    async def think(self) -> bool:#双阶段构造，1：根据用户提示，2.根据LLM
         """Process current state and decide next actions using tools"""
+        # 动态构建用户提示
         if self.next_step_prompt:
             user_msg = Message.user_message(self.next_step_prompt)
             self.messages += [user_msg]
 
-        # Get response with tool options
+        # 调用LLM获取工具调用方案
         response = await self.llm.ask_tool(
             messages=self.messages,
             system_msgs=[Message.system_message(self.system_prompt)]
@@ -49,7 +50,7 @@ class ToolCallAgent(ReActAgent):
         )
         self.tool_calls = response.tool_calls
 
-        # Log response info
+        # 日志记录（增强可观测性）
         logger.info(f"✨ {self.name}'s thoughts: {response.content}")
         logger.info(
             f"🛠️ {self.name} selected {len(response.tool_calls) if response.tool_calls else 0} tools to use"
@@ -97,7 +98,7 @@ class ToolCallAgent(ReActAgent):
                 )
             )
             return False
-
+    #​执行保障：空工具调用时的容错处理,逐个执行工具并记录结果,结果拼接返回给用户
     async def act(self) -> str:
         """Execute tool calls and handle their results"""
         if not self.tool_calls:
@@ -122,7 +123,7 @@ class ToolCallAgent(ReActAgent):
             results.append(result)
 
         return "\n\n".join(results)
-
+    #工具执行,健壮性设计
     async def execute_tool(self, command: ToolCall) -> str:
         """Execute a single tool call with robust error handling"""
         if not command or not command.function or not command.function.name:
@@ -140,8 +141,8 @@ class ToolCallAgent(ReActAgent):
             logger.info(f"🔧 Activating tool: '{name}'...")
             result = await self.available_tools.execute(name=name, tool_input=args)
 
-            # Format result for display
-            observation = (
+            # Format result for display格式化处理
+            observation = ( 
                 f"Observed output of cmd `{name}` executed:\n{str(result)}"
                 if result
                 else f"Cmd `{name}` completed with no output"
@@ -161,7 +162,7 @@ class ToolCallAgent(ReActAgent):
             error_msg = f"⚠️ Tool '{name}' encountered a problem: {str(e)}"
             logger.error(error_msg)
             return f"Error: {error_msg}"
-
+    #​终止条件检测，触发代理状态转为FINISHED，实现优雅的流程终止
     async def _handle_special_tool(self, name: str, result: Any, **kwargs):
         """Handle special tool execution and state changes"""
         if not self._is_special_tool(name):

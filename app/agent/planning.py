@@ -1,3 +1,4 @@
+#这段代码实现了一个基于任务规划的智能体（PlanningAgent），能够创建、执行和跟踪多步骤任务的进度。
 import time
 from typing import Dict, List, Literal, Optional
 
@@ -34,7 +35,7 @@ class PlanningAgent(ToolCallAgent):
     active_plan_id: Optional[str] = Field(default=None)
 
     # Add a dictionary to track the step status for each tool call
-    step_execution_tracker: Dict[str, Dict] = Field(default_factory=dict)
+    step_execution_tracker: Dict[str, Dict] = Field(default_factory=dict)# 字典记录每个工具调用的
     current_step_index: Optional[int] = None
 
     max_steps: int = 20
